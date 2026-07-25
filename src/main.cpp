@@ -1,4 +1,8 @@
+#include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
+
+#define I2C_SDA_PIN 21
+#define I2C_SCL_PIN 22
 
 LiquidCrystal_I2C lcd(0x27, 16, 2); // адрес, столбцов, строк
 
@@ -10,7 +14,7 @@ struct CellData
 
 static CellData lcdScreen[2][16];
 
-bool display[18][96] = {0};
+bool display[17][95] = {0};
 
 bool pixelArt[7][11] = {
     {0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
@@ -23,38 +27,35 @@ bool pixelArt[7][11] = {
 
 uint8_t pointer[2] = {0, 0};
 
-template <size_t Rows, size_t Cols>
-void printArr(bool (&arr)[Rows][Cols]);
-
 template <size_t artRows, size_t artCols, size_t dispRows, size_t dispCols>
 void fillDisplay(bool (&pixelArt)[artRows][artCols], bool (&display)[dispRows][dispCols], uint8_t pointer[2]);
 
+template <size_t dispRows, size_t dispCols>
+void clearDisplay(bool (&display)[dispRows][dispCols]);
+
 void fillLcdDisplay();
 void paint();
+void test();
 
 void setup()
 {
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+
   lcd.init();
   lcd.backlight();
-  fillDisplay(pixelArt, display, pointer);
-  fillLcdDisplay();
-  paint();
 }
 
 void loop()
 {
-}
-
-template <size_t Rows, size_t Cols>
-void printArr(bool (&arr)[Rows][Cols])
-{
-  for (size_t i = 0; i < Rows; ++i)
+  static unsigned long tmr = 0;
+  if (millis() - tmr > 250)
   {
-    for (size_t j = 0; j < Cols; ++j)
-    {
-      std::cout << arr[i][j];
-    }
-    std::cout << "\n";
+    tmr = millis();
+    pointer[1]++;
+    clearDisplay(display);
+    fillDisplay(pixelArt, display, pointer);
+    fillLcdDisplay();
+    paint();
   }
 }
 
@@ -66,6 +67,18 @@ void fillDisplay(bool (&pixelArt)[artRows][artCols], bool (&display)[dispRows][d
     for (int j = 0; j < artCols; j++)
     {
       display[i + pointer[0]][j + pointer[1]] = pixelArt[i][j];
+    }
+  }
+}
+
+template <size_t dispRows, size_t dispCols>
+void clearDisplay(bool (&display)[dispRows][dispCols])
+{
+  for (int i = 0; i < dispRows; i++)
+  {
+    for (int j = 0; j < dispCols; j++)
+    {
+      display[i][j] = 0;
     }
   }
 }
@@ -104,18 +117,22 @@ void fillLcdDisplay()
 
 void paint()
 {
-  int customCharCount = 0;
+  uint8_t customCharCount = 0;
   for (int i = 0; i < 2; i++)
   {
     for (int j = 0; j < 16; j++)
     {
-      CellData currentCell = lcdScreen[i][j];
-      if (currentCell.flag)
+      if (lcdScreen[i][j].flag)
       {
+        lcd.createChar(customCharCount, lcdScreen[i][j].data);
         lcd.setCursor(j, i);
-        lcd.createChar(customCharCount, currentCell.data);
         lcd.write(customCharCount);
         customCharCount++;
+      }
+      else
+      {
+        lcd.setCursor(j, i);
+        lcd.write(' ');
       }
     }
   }
